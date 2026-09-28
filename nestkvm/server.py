@@ -7,19 +7,22 @@ which must stay lightweight):
            edge that faces the other computer. Everything works normally on this
            machine. When the edge is reached we push ("enter", ...) to the queue.
 
-  REMOTE — the other computer is being driven. We start suppressing mouse +
-           keyboard listeners so nothing reaches THIS machine, and forward every
-           event over the socket. The cursor is warped back to screen-centre on
-           every move so it never gets stuck against a real screen edge; the
-           delta from centre is what we send. We leave REMOTE when the client
-           reports its cursor came back to the shared edge.
+  REMOTE — the other computer is being driven. Suppressing mouse + keyboard
+           listeners stop everything from reaching THIS machine and forward every
+           event over the socket. We leave REMOTE when the client reports its
+           cursor came back to the shared edge.
 
-Warp-to-centre note: Controller.position uses CGWarpMouseCursorPosition (macOS) /
-SetCursorPos (Windows), which bypass the event tap/hook, so the warp still works
-even while moves are suppressed.
+Getting relative motion differs by OS:
+  * macOS — CGAssociateMouseAndMouseCursorPosition(False) freezes the on-screen
+    cursor, and we read the true hardware deltas (kCGMouseEventDeltaX/Y) straight
+    off the event tap via darwin_intercept. The pointer stays put and there is no
+    position math to glitch at screen edges.
+  * other — warp the cursor back to screen-centre only near a real edge and send
+    incremental position deltas the rest of the time.
 """
 
 import queue
+import sys
 import threading
 
 from pynput import keyboard, mouse
@@ -51,6 +54,26 @@ class Server:
         self._pending_center = False  # waiting for the cursor to land back near centre
         self._pending_wait = 0
         self._cmd = queue.Queue()
+
+        # macOS captures hardware deltas with the cursor frozen (see _start_remote).
+        self._is_mac = sys.platform == "darwin"
+        self._Q = None
+        if self._is_mac:
+            import Quartz
+
+            self._Q = Quartz
+            self._MOVE_TYPES = {
+                Quartz.kCGEventMouseMoved, Quartz.kCGEventLeftMouseDragged,
+                Quartz.kCGEventRightMouseDragged, Quartz.kCGEventOtherMouseDragged,
+            }
+            self._DOWN_TYPES = {
+                Quartz.kCGEventLeftMouseDown, Quartz.kCGEventRightMouseDown,
+                Quartz.kCGEventOtherMouseDown,
+            }
+            self._UP_TYPES = {
+                Quartz.kCGEventLeftMouseUp, Quartz.kCGEventRightMouseUp,
+                Quartz.kCGEventOtherMouseUp,
+            }
 
         self.clip = None
         if clipboard:
@@ -145,12 +168,21 @@ class Server:
             self._m_listener = None
 
     def _start_remote(self):
-        self._m_listener = mouse.Listener(
-            on_move=self._on_move_remote,
-            on_click=self._on_click_remote,
-            on_scroll=self._on_scroll_remote,
-            suppress=True,
-        )
+        if self._is_mac:
+            # Freeze the on-screen cursor and read raw hardware deltas from the
+            # event tap. Position-based deltas can't work here (the cursor no
+            # longer moves), but hardware deltas are exactly the motion we want,
+            # and the Mac pointer stays put while we drive the client.
+            self._Q.CGAssociateMouseAndMouseCursorPosition(False)
+            self._m_listener = mouse.Listener(
+                darwin_intercept=self._m_darwin_intercept, suppress=True)
+        else:
+            self._m_listener = mouse.Listener(
+                on_move=self._on_move_remote,
+                on_click=self._on_click_remote,
+                on_scroll=self._on_scroll_remote,
+                suppress=True,
+            )
         self._m_listener.start()
         self._k_listener = keyboard.Listener(
             on_press=self._on_press_remote,
@@ -166,6 +198,8 @@ class Server:
         if self._k_listener:
             self._k_listener.stop()
             self._k_listener = None
+        if self._is_mac and self._Q is not None:
+            self._Q.CGAssociateMouseAndMouseCursorPosition(True)  # unfreeze cursor
 
     # ---- LOCAL callbacks ----
     def _on_move_local(self, x, y):
@@ -223,3 +257,43 @@ class Server:
 
     def _on_release_remote(self, key):
         self._safe_send({"t": "ku", "key": serialize_key(key)})
+
+    # ---- macOS remote path: hardware deltas via the event tap ----
+    def _emit_move(self, dx, dy):
+        self._sx += dx * self.speed
+        self._sy += dy * self.speed
+        sdx = int(self._sx)
+        sdy = int(self._sy)
+        self._sx -= sdx
+        self._sy -= sdy
+        if sdx or sdy:
+            self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
+
+    def _btn_for(self, et):
+        Q = self._Q
+        if et in (Q.kCGEventRightMouseDown, Q.kCGEventRightMouseUp):
+            return "right"
+        if et in (Q.kCGEventOtherMouseDown, Q.kCGEventOtherMouseUp):
+            return "middle"
+        return "left"
+
+    def _m_darwin_intercept(self, event_type, event):
+        Q = self._Q
+        try:
+            if event_type in self._MOVE_TYPES:
+                dx = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaX)
+                dy = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaY)
+                if dx or dy:
+                    self._emit_move(dx, dy)
+            elif event_type in self._DOWN_TYPES:
+                self._safe_send({"t": "down", "btn": self._btn_for(event_type)})
+            elif event_type in self._UP_TYPES:
+                self._safe_send({"t": "up", "btn": self._btn_for(event_type)})
+            elif event_type == Q.kCGEventScrollWheel:
+                sdy = Q.CGEventGetIntegerValueField(event, Q.kCGScrollWheelEventDeltaAxis1)
+                sdx = Q.CGEventGetIntegerValueField(event, Q.kCGScrollWheelEventDeltaAxis2)
+                if sdx or sdy:
+                    self._safe_send({"t": "scroll", "dx": sdx, "dy": sdy})
+        except Exception:
+            pass
+        return None  # never let mouse events reach the Mac while driving the client

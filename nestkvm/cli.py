@@ -69,6 +69,18 @@ def _permcheck(args):
         print("  quit this terminal app (Cmd+Q) and reopen it before running again.")
 
 
+def _unfreeze(args):
+    import sys
+
+    if sys.platform != "darwin":
+        print("[nest-kvm] unfreeze is macOS-only.")
+        return
+    import Quartz
+
+    Quartz.CGAssociateMouseAndMouseCursorPosition(True)
+    print("[nest-kvm] mouse cursor re-associated. If it was stuck, it should move now.")
+
+
 def _selftest(args):
     import socket as _s
 
@@ -117,6 +129,9 @@ def main(argv=None):
 
     pp = sub.add_parser("permcheck", help="macOS: pop the Accessibility permission dialog")
     pp.set_defaults(func=_permcheck)
+
+    pu = sub.add_parser("unfreeze", help="macOS: re-enable the mouse cursor if it got stuck")
+    pu.set_defaults(func=_unfreeze)
 
     args = p.parse_args(argv)
     args.func(args)
