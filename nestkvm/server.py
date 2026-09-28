@@ -31,7 +31,7 @@ from .keys import serialize_key
 
 class Server:
     def __init__(self, conn: Connection, edge: str = "right",
-                 clipboard: bool = True, images: bool = True):
+                 clipboard: bool = True, images: bool = True, speed: float = 1.0):
         self.conn = conn
         self.edge = edge  # which side the OTHER computer physically sits on
         self.width, self.height = get_screen_size()
@@ -39,11 +39,17 @@ class Server:
         self.cy = self.height // 2
         self.remote = False
         self.running = True
+        self.speed = speed
 
         self.mouse_ctrl = mouse.Controller()
         self._m_listener = None
         self._k_listener = None
-        self._last_pos = None  # last reported cursor pos, for incremental deltas
+        self._last_pos = None       # last reported cursor pos, for incremental deltas
+        self._sx = 0.0              # sub-pixel carry for speed scaling
+        self._sy = 0.0
+        self._margin = 60           # recenter only within this many px of a real edge
+        self._pending_center = False  # waiting for the cursor to land back near centre
+        self._pending_wait = 0
         self._cmd = queue.Queue()
 
         self.clip = None
@@ -112,6 +118,9 @@ class Server:
         self._stop_local()
         self.mouse_ctrl.position = (self.cx, self.cy)
         self._last_pos = None  # first remote move re-establishes the baseline
+        self._sx = self._sy = 0.0
+        self._pending_center = False
+        self._pending_wait = 0
         self._start_remote()
 
     def _leave_remote(self, ratio):
@@ -169,19 +178,39 @@ class Server:
 
     # ---- REMOTE callbacks ----
     def _on_move_remote(self, x, y):
+        # After a recenter we drop events until the cursor is actually back near
+        # centre, so the warp discontinuity is never measured as motion. The
+        # counter is a safety net in case the warp event is never observed.
+        if self._pending_center:
+            self._pending_wait += 1
+            near = abs(x - self.cx) <= self._margin and abs(y - self.cy) <= self._margin
+            if near or self._pending_wait > 20:
+                self._pending_center = False
+                self._pending_wait = 0
+                self._last_pos = (x, y)
+            return
         if self._last_pos is None:
             self._last_pos = (x, y)
             return
         dx = x - self._last_pos[0]
         dy = y - self._last_pos[1]
-        if dx == 0 and dy == 0:
-            return  # our own warp-to-centre event, or no motion
-        self._safe_send({"t": "move", "dx": dx, "dy": dy})
-        # keep the physical cursor near centre so it never sticks to a real edge,
-        # then read back where it actually landed so the next delta is correct
-        # whether or not the warp took effect (it can be swallowed under suppress).
-        self.mouse_ctrl.position = (self.cx, self.cy)
-        self._last_pos = self.mouse_ctrl.position
+        self._last_pos = (x, y)
+        if dx or dy:
+            self._sx += dx * self.speed
+            self._sy += dy * self.speed
+            sdx = int(self._sx)
+            sdy = int(self._sy)
+            self._sx -= sdx
+            self._sy -= sdy
+            if sdx or sdy:
+                self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
+        # only recenter when nearing a real screen edge, so most moves are pure
+        # incremental deltas with no warp discontinuity
+        if (x < self._margin or x > self.width - self._margin
+                or y < self._margin or y > self.height - self._margin):
+            self.mouse_ctrl.position = (self.cx, self.cy)
+            self._pending_center = True
+            self._pending_wait = 0
 
     def _on_click_remote(self, x, y, button, pressed):
         self._safe_send({"t": "down" if pressed else "up", "btn": button.name})

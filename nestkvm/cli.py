@@ -19,7 +19,7 @@ def _serve(args):
             print(f"[nest-kvm] client connected from {addr[0]}")
             server = Server(Connection(conn_sock), edge=args.edge,
                             clipboard=not args.no_clipboard,
-                            images=not args.no_images)
+                            images=not args.no_images, speed=args.speed)
             server.run()
             print("[nest-kvm] client disconnected; waiting again...")
     except KeyboardInterrupt:
@@ -99,6 +99,8 @@ def main(argv=None):
                     help="which side the OTHER computer physically sits on")
     ps.add_argument("--no-clipboard", action="store_true")
     ps.add_argument("--no-images", action="store_true", help="sync text only, skip image clipboard")
+    ps.add_argument("--speed", type=float, default=1.0,
+                    help="mouse sensitivity sent to the client; lower = slower (try 0.5 or 0.35)")
     ps.set_defaults(func=_serve)
 
     pc = sub.add_parser("client", help="run on the machine being controlled")
