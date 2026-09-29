@@ -150,7 +150,11 @@ class Server:
         self.remote = True
         self._set_suppress(True)
         self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
-        self.mouse_ctrl.position = (self.cx, self.cy)
+        if not self._is_mac:
+            # non-mac warps to centre to avoid sticking at a real edge; on mac the
+            # cursor is frozen instead, and warping here would inject a huge bogus
+            # delta (edge -> centre) that bounces the client straight back.
+            self.mouse_ctrl.position = (self.cx, self.cy)
         self._freeze()
         self._moves = 0
         self._dbg(f"ENTER remote (edge={self.edge}) -> now driving the client")

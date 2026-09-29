@@ -67,6 +67,9 @@ class Client:
 
     def _leave(self):
         self.active = False
+        if self.debug:
+            print(f"[dbg] LEAVE: cursor reached the return edge (rx={self.rx:.0f}), "
+                  f"handing control back to server", flush=True)
         self._safe_send({"t": "leave", "ratio": self.ry / self.height})
 
     def _handle(self, msg):
@@ -76,9 +79,12 @@ class Client:
             self._moves = 0
             self.edge = msg.get("edge", "right")
             ratio = msg.get("ratio", 0.5)
-            # enter from the side facing the server
-            self.rx = 1 if self.edge == "right" else self.width - 2
+            # enter from the side facing the server, a margin clear of the return
+            # edge so a small delta doesn't instantly cross back
+            margin = 25
+            self.rx = margin if self.edge == "right" else self.width - 1 - margin
             self.ry = int(ratio * self.height)
+            self._fx = self._fy = 0.0
             self._place()
             if self.debug:
                 print(f"[dbg] ENTER: server handed control here (edge={self.edge})", flush=True)
@@ -87,8 +93,11 @@ class Client:
                 return
             if self.debug:
                 self._moves += 1
-                if self._moves % 25 == 1:
-                    print(f"[dbg] receiving motion from server ({self._moves})", flush=True)
+                if self._moves <= 3:
+                    print(f"[dbg] move #{self._moves}: dx={msg.get('dx')} dy={msg.get('dy')} "
+                          f"rx={self.rx:.0f}", flush=True)
+                elif self._moves % 40 == 0:
+                    print(f"[dbg] receiving motion ({self._moves})", flush=True)
             self._fx += msg.get("dx", 0) * self.speed
             self._fy += msg.get("dy", 0) * self.speed
             step_x = int(self._fx)
