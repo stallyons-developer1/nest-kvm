@@ -15,8 +15,10 @@ from .keys import deserialize_button, deserialize_key
 
 class Client:
     def __init__(self, conn: Connection, clipboard: bool = True, images: bool = True,
-                 speed: float = 1.0):
+                 speed: float = 1.0, debug: bool = False):
         self.conn = conn
+        self.debug = debug
+        self._moves = 0
         self.width, self.height = get_screen_size()
         self.mouse_ctrl = mouse.Controller()
         self.kbd_ctrl = keyboard.Controller()
@@ -71,15 +73,22 @@ class Client:
         t = msg.get("t")
         if t == "enter":
             self.active = True
+            self._moves = 0
             self.edge = msg.get("edge", "right")
             ratio = msg.get("ratio", 0.5)
             # enter from the side facing the server
             self.rx = 1 if self.edge == "right" else self.width - 2
             self.ry = int(ratio * self.height)
             self._place()
+            if self.debug:
+                print(f"[dbg] ENTER: server handed control here (edge={self.edge})", flush=True)
         elif t == "move":
             if not self.active:
                 return
+            if self.debug:
+                self._moves += 1
+                if self._moves % 25 == 1:
+                    print(f"[dbg] receiving motion from server ({self._moves})", flush=True)
             self._fx += msg.get("dx", 0) * self.speed
             self._fy += msg.get("dy", 0) * self.speed
             step_x = int(self._fx)

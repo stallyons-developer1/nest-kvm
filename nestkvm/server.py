@@ -36,8 +36,9 @@ from .keys import serialize_key
 class Server:
     def __init__(self, conn: Connection, edge: str = "right",
                  clipboard: bool = True, images: bool = True, speed: float = 1.0,
-                 edge_px: int = 2):
+                 edge_px: int = 2, debug: bool = False):
         self.conn = conn
+        self.debug = debug
         self.edge = edge  # which side the OTHER computer physically sits on
         self.width, self.height = get_screen_size()
         self.cx = self.width // 2
@@ -90,6 +91,10 @@ class Server:
         self.running = False
         self._cmd.put(None)
 
+    def _dbg(self, msg):
+        if self.debug:
+            print("[dbg]", msg, flush=True)
+
     # ---- inbound messages from the client ----
     def _reader_loop(self):
         try:
@@ -118,6 +123,8 @@ class Server:
     # ---- mode manager (own thread) ----
     def _manage(self):
         self._start_listeners()
+        self._dbg(f"listeners started (is_mac={self._is_mac}, screen={self.width}x{self.height}, "
+                  f"edge={self.edge}, edge_px={self._edge_px}). Move the mouse now.")
         try:
             while self.running:
                 cmd = self._cmd.get()
@@ -145,11 +152,14 @@ class Server:
         self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
         self.mouse_ctrl.position = (self.cx, self.cy)
         self._freeze()
+        self._moves = 0
+        self._dbg(f"ENTER remote (edge={self.edge}) -> now driving the client")
 
     def _leave_remote(self, ratio):
         self.remote = False
         self._set_suppress(False)
         self._unfreeze()
+        self._dbg("LEAVE remote -> control back on this machine")
         y = int(ratio * self.height)
         # drop the cursor clear of the crossing band so it doesn't instantly re-cross
         inset = self._edge_px + 12
@@ -215,6 +225,11 @@ class Server:
             if not self._is_mac:
                 self._on_move_remote(x, y)  # mac motion comes from the intercept
             return
+        if self.debug:
+            if self.edge == "left" and x <= 12:
+                self._dbg(f"near LEFT edge x={x:.1f} (need <= {self._edge_px})")
+            elif self.edge == "right" and x >= self.width - 12:
+                self._dbg(f"near RIGHT edge x={x:.1f} (need >= {self.width - 1 - self._edge_px})")
         if self.edge == "right" and x >= self.width - 1 - self._edge_px:
             self._cmd.put(("enter", y / self.height))
         elif self.edge == "left" and x <= self._edge_px:
@@ -245,6 +260,10 @@ class Server:
         self._sy -= sdy
         if sdx or sdy:
             self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
+            if self.debug:
+                self._moves = getattr(self, "_moves", 0) + 1
+                if self._moves % 25 == 1:
+                    self._dbg(f"forwarding motion to client ({self._moves} moves sent)")
 
     def _on_move_remote(self, x, y):
         # non-macOS path: incremental position deltas, recenter only near an edge
