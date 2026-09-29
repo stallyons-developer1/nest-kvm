@@ -35,7 +35,8 @@ from .keys import serialize_key
 
 class Server:
     def __init__(self, conn: Connection, edge: str = "right",
-                 clipboard: bool = True, images: bool = True, speed: float = 1.0):
+                 clipboard: bool = True, images: bool = True, speed: float = 1.0,
+                 edge_px: int = 2):
         self.conn = conn
         self.edge = edge  # which side the OTHER computer physically sits on
         self.width, self.height = get_screen_size()
@@ -44,6 +45,10 @@ class Server:
         self.remote = False
         self.running = True
         self.speed = speed
+        # crossing band: fire within this many px of the edge. A hard `x == 0`
+        # check misses Retina's fractional coordinates (0.5, 1.3, ...), so the
+        # jump to the other machine would trigger only sometimes.
+        self._edge_px = max(1, edge_px)
 
         self.mouse_ctrl = mouse.Controller()
         self._m_listener = None
@@ -146,11 +151,12 @@ class Server:
         self._set_suppress(False)
         self._unfreeze()
         y = int(ratio * self.height)
-        # drop the cursor just inside our edge so it doesn't instantly re-cross
+        # drop the cursor clear of the crossing band so it doesn't instantly re-cross
+        inset = self._edge_px + 12
         if self.edge == "right":
-            self.mouse_ctrl.position = (self.width - 3, y)
+            self.mouse_ctrl.position = (self.width - 1 - inset, y)
         else:
-            self.mouse_ctrl.position = (2, y)
+            self.mouse_ctrl.position = (inset, y)
 
     # ---- macOS cursor freeze (decouples the pointer from the mouse) ----
     def _freeze(self):
@@ -209,9 +215,9 @@ class Server:
             if not self._is_mac:
                 self._on_move_remote(x, y)  # mac motion comes from the intercept
             return
-        if self.edge == "right" and x >= self.width - 1:
+        if self.edge == "right" and x >= self.width - 1 - self._edge_px:
             self._cmd.put(("enter", y / self.height))
-        elif self.edge == "left" and x <= 0:
+        elif self.edge == "left" and x <= self._edge_px:
             self._cmd.put(("enter", y / self.height))
 
     def _on_click(self, x, y, button, pressed):
