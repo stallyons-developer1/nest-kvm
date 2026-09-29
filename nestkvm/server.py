@@ -1,24 +1,25 @@
 """Server = the machine whose keyboard/mouse you physically use.
 
-Two modes, switched by a single manager thread (never inside a pynput callback,
-which must stay lightweight):
+One mouse + one keyboard listener stay alive for the WHOLE connection. Switching
+between LOCAL and REMOTE only flips whether they swallow events — we never stop
+and restart them, because on macOS tearing down a suppressing event tap leaves it
+behind, which keeps eating clicks and keys after control returns to this machine.
 
-  LOCAL  — one non-suppressing mouse listener watches for the cursor hitting the
-           edge that faces the other computer. Everything works normally on this
-           machine. When the edge is reached we push ("enter", ...) to the queue.
-
-  REMOTE — the other computer is being driven. Suppressing mouse + keyboard
-           listeners stop everything from reaching THIS machine and forward every
-           event over the socket. We leave REMOTE when the client reports its
+  LOCAL  — listeners pass everything through and only watch for the cursor
+           hitting the edge that faces the other computer.
+  REMOTE — the other computer is being driven: events are forwarded over the
+           socket and swallowed here. We leave REMOTE when the client reports its
            cursor came back to the shared edge.
 
-Getting relative motion differs by OS:
-  * macOS — CGAssociateMouseAndMouseCursorPosition(False) freezes the on-screen
-    cursor, and we read the true hardware deltas (kCGMouseEventDeltaX/Y) straight
-    off the event tap via darwin_intercept. The pointer stays put and there is no
-    position math to glitch at screen edges.
-  * other — warp the cursor back to screen-centre only near a real edge and send
-    incremental position deltas the rest of the time.
+Relative motion differs by OS:
+  * macOS — the on-screen cursor is frozen (CGAssociateMouseAndMouseCursorPosition)
+    and we read true hardware deltas (kCGMouseEventDeltaX/Y) off the event tap via
+    darwin_intercept. Position math can't work with a frozen cursor, and hardware
+    deltas never glitch at a screen edge. pynput fires the high-level callbacks
+    BEFORE the intercept, so clicks/scroll/keys still forward via on_* while the
+    intercept swallows them from this Mac.
+  * other — incremental position deltas, warping the cursor back to centre only
+    near a real edge.
 """
 
 import queue
@@ -51,13 +52,13 @@ class Server:
         self._sx = 0.0              # sub-pixel carry for speed scaling
         self._sy = 0.0
         self._margin = 60           # recenter only within this many px of a real edge
-        self._pending_center = False  # waiting for the cursor to land back near centre
+        self._pending_center = False
         self._pending_wait = 0
         self._cmd = queue.Queue()
 
-        # macOS captures hardware deltas with the cursor frozen (see _start_remote).
         self._is_mac = sys.platform == "darwin"
         self._Q = None
+        self._frozen = False
         if self._is_mac:
             import Quartz
 
@@ -65,14 +66,6 @@ class Server:
             self._MOVE_TYPES = {
                 Quartz.kCGEventMouseMoved, Quartz.kCGEventLeftMouseDragged,
                 Quartz.kCGEventRightMouseDragged, Quartz.kCGEventOtherMouseDragged,
-            }
-            self._DOWN_TYPES = {
-                Quartz.kCGEventLeftMouseDown, Quartz.kCGEventRightMouseDown,
-                Quartz.kCGEventOtherMouseDown,
-            }
-            self._UP_TYPES = {
-                Quartz.kCGEventLeftMouseUp, Quartz.kCGEventRightMouseUp,
-                Quartz.kCGEventOtherMouseUp,
             }
 
         self.clip = None
@@ -119,7 +112,7 @@ class Server:
 
     # ---- mode manager (own thread) ----
     def _manage(self):
-        self._start_local()
+        self._start_listeners()
         try:
             while self.running:
                 cmd = self._cmd.get()
@@ -130,91 +123,125 @@ class Server:
                 elif cmd[0] == "leave" and self.remote:
                     self._leave_remote(cmd[1] if len(cmd) > 1 else 0.5)
         finally:
-            self._stop_local()
-            self._stop_remote()
+            self.remote = False
+            self._set_suppress(False)
+            self._unfreeze()
+            self._stop_listeners()
             if self.clip:
                 self.clip.stop()
 
     def _enter_remote(self, ratio):
-        self.remote = True
-        self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
-        self._stop_local()
-        self.mouse_ctrl.position = (self.cx, self.cy)
         self._last_pos = None  # first remote move re-establishes the baseline
         self._sx = self._sy = 0.0
         self._pending_center = False
         self._pending_wait = 0
-        self._start_remote()
+        self.remote = True
+        self._set_suppress(True)
+        self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
+        self.mouse_ctrl.position = (self.cx, self.cy)
+        self._freeze()
 
     def _leave_remote(self, ratio):
         self.remote = False
-        self._stop_remote()
+        self._set_suppress(False)
+        self._unfreeze()
         y = int(ratio * self.height)
         # drop the cursor just inside our edge so it doesn't instantly re-cross
         if self.edge == "right":
             self.mouse_ctrl.position = (self.width - 3, y)
         else:
             self.mouse_ctrl.position = (2, y)
-        self._start_local()
 
-    # ---- listeners ----
-    def _start_local(self):
-        self._m_listener = mouse.Listener(on_move=self._on_move_local)
-        self._m_listener.start()
-
-    def _stop_local(self):
-        if self._m_listener:
-            self._m_listener.stop()
-            self._m_listener = None
-
-    def _start_remote(self):
-        if self._is_mac:
-            # Freeze the on-screen cursor and read raw hardware deltas from the
-            # event tap. Position-based deltas can't work here (the cursor no
-            # longer moves), but hardware deltas are exactly the motion we want,
-            # and the Mac pointer stays put while we drive the client.
+    # ---- macOS cursor freeze (decouples the pointer from the mouse) ----
+    def _freeze(self):
+        if self._is_mac and not self._frozen:
             self._Q.CGAssociateMouseAndMouseCursorPosition(False)
-            self._m_listener = mouse.Listener(
-                darwin_intercept=self._m_darwin_intercept, suppress=True)
-        else:
-            self._m_listener = mouse.Listener(
-                on_move=self._on_move_remote,
-                on_click=self._on_click_remote,
-                on_scroll=self._on_scroll_remote,
-                suppress=True,
-            )
-        self._m_listener.start()
+            self._frozen = True
+
+    def _unfreeze(self):
+        if self._is_mac and self._frozen:
+            self._Q.CGAssociateMouseAndMouseCursorPosition(True)
+            self._frozen = False
+
+    # ---- listeners (persistent for the whole connection) ----
+    def _start_listeners(self):
+        mkw = {"darwin_intercept": self._darwin_intercept} if self._is_mac else {}
+        kkw = {"darwin_intercept": self._darwin_intercept} if self._is_mac else {}
+        self._m_listener = mouse.Listener(
+            on_move=self._on_move, on_click=self._on_click,
+            on_scroll=self._on_scroll, **mkw)
         self._k_listener = keyboard.Listener(
-            on_press=self._on_press_remote,
-            on_release=self._on_release_remote,
-            suppress=True,
-        )
+            on_press=self._on_press, on_release=self._on_release, **kkw)
+        self._m_listener.start()
         self._k_listener.start()
 
-    def _stop_remote(self):
-        if self._m_listener:
-            self._m_listener.stop()
-            self._m_listener = None
-        if self._k_listener:
-            self._k_listener.stop()
-            self._k_listener = None
-        if self._is_mac and self._Q is not None:
-            self._Q.CGAssociateMouseAndMouseCursorPosition(True)  # unfreeze cursor
+    def _stop_listeners(self):
+        for listener in (self._m_listener, self._k_listener):
+            if listener:
+                listener.stop()
+        self._m_listener = None
+        self._k_listener = None
 
-    # ---- LOCAL callbacks ----
-    def _on_move_local(self, x, y):
+    def _set_suppress(self, on):
+        # macOS ignores this — _darwin_intercept decides suppression instead.
+        # On Windows the low-level hook reads this flag on every event.
+        for listener in (self._m_listener, self._k_listener):
+            if listener:
+                listener._suppress = on
+
+    def _darwin_intercept(self, event_type, event):
+        if not self.remote:
+            return event  # LOCAL: let everything through
+        # REMOTE: mouse motion must be read HERE — the cursor is frozen, so the
+        # on_move callback only ever sees the frozen position. Clicks/scroll/keys
+        # are already forwarded by the on_* callbacks (they run before us).
+        if event_type in self._MOVE_TYPES:
+            Q = self._Q
+            dx = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaX)
+            dy = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaY)
+            if dx or dy:
+                self._emit_move(dx, dy)
+        return None  # swallow everything from this Mac while driving the client
+
+    # ---- callbacks (shared; each checks self.remote) ----
+    def _on_move(self, x, y):
         if self.remote:
+            if not self._is_mac:
+                self._on_move_remote(x, y)  # mac motion comes from the intercept
             return
         if self.edge == "right" and x >= self.width - 1:
             self._cmd.put(("enter", y / self.height))
         elif self.edge == "left" and x <= 0:
             self._cmd.put(("enter", y / self.height))
 
-    # ---- REMOTE callbacks ----
+    def _on_click(self, x, y, button, pressed):
+        if self.remote:
+            self._safe_send({"t": "down" if pressed else "up", "btn": button.name})
+
+    def _on_scroll(self, x, y, dx, dy):
+        if self.remote:
+            self._safe_send({"t": "scroll", "dx": dx, "dy": dy})
+
+    def _on_press(self, key):
+        if self.remote:
+            self._safe_send({"t": "kd", "key": serialize_key(key)})
+
+    def _on_release(self, key):
+        if self.remote:
+            self._safe_send({"t": "ku", "key": serialize_key(key)})
+
+    def _emit_move(self, dx, dy):
+        self._sx += dx * self.speed
+        self._sy += dy * self.speed
+        sdx = int(self._sx)
+        sdy = int(self._sy)
+        self._sx -= sdx
+        self._sy -= sdy
+        if sdx or sdy:
+            self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
+
     def _on_move_remote(self, x, y):
-        # After a recenter we drop events until the cursor is actually back near
-        # centre, so the warp discontinuity is never measured as motion. The
-        # counter is a safety net in case the warp event is never observed.
+        # non-macOS path: incremental position deltas, recenter only near an edge
         if self._pending_center:
             self._pending_wait += 1
             near = abs(x - self.cx) <= self._margin and abs(y - self.cy) <= self._margin
@@ -230,70 +257,9 @@ class Server:
         dy = y - self._last_pos[1]
         self._last_pos = (x, y)
         if dx or dy:
-            self._sx += dx * self.speed
-            self._sy += dy * self.speed
-            sdx = int(self._sx)
-            sdy = int(self._sy)
-            self._sx -= sdx
-            self._sy -= sdy
-            if sdx or sdy:
-                self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
-        # only recenter when nearing a real screen edge, so most moves are pure
-        # incremental deltas with no warp discontinuity
+            self._emit_move(dx, dy)
         if (x < self._margin or x > self.width - self._margin
                 or y < self._margin or y > self.height - self._margin):
             self.mouse_ctrl.position = (self.cx, self.cy)
             self._pending_center = True
             self._pending_wait = 0
-
-    def _on_click_remote(self, x, y, button, pressed):
-        self._safe_send({"t": "down" if pressed else "up", "btn": button.name})
-
-    def _on_scroll_remote(self, x, y, dx, dy):
-        self._safe_send({"t": "scroll", "dx": dx, "dy": dy})
-
-    def _on_press_remote(self, key):
-        self._safe_send({"t": "kd", "key": serialize_key(key)})
-
-    def _on_release_remote(self, key):
-        self._safe_send({"t": "ku", "key": serialize_key(key)})
-
-    # ---- macOS remote path: hardware deltas via the event tap ----
-    def _emit_move(self, dx, dy):
-        self._sx += dx * self.speed
-        self._sy += dy * self.speed
-        sdx = int(self._sx)
-        sdy = int(self._sy)
-        self._sx -= sdx
-        self._sy -= sdy
-        if sdx or sdy:
-            self._safe_send({"t": "move", "dx": sdx, "dy": sdy})
-
-    def _btn_for(self, et):
-        Q = self._Q
-        if et in (Q.kCGEventRightMouseDown, Q.kCGEventRightMouseUp):
-            return "right"
-        if et in (Q.kCGEventOtherMouseDown, Q.kCGEventOtherMouseUp):
-            return "middle"
-        return "left"
-
-    def _m_darwin_intercept(self, event_type, event):
-        Q = self._Q
-        try:
-            if event_type in self._MOVE_TYPES:
-                dx = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaX)
-                dy = Q.CGEventGetIntegerValueField(event, Q.kCGMouseEventDeltaY)
-                if dx or dy:
-                    self._emit_move(dx, dy)
-            elif event_type in self._DOWN_TYPES:
-                self._safe_send({"t": "down", "btn": self._btn_for(event_type)})
-            elif event_type in self._UP_TYPES:
-                self._safe_send({"t": "up", "btn": self._btn_for(event_type)})
-            elif event_type == Q.kCGEventScrollWheel:
-                sdy = Q.CGEventGetIntegerValueField(event, Q.kCGScrollWheelEventDeltaAxis1)
-                sdx = Q.CGEventGetIntegerValueField(event, Q.kCGScrollWheelEventDeltaAxis2)
-                if sdx or sdy:
-                    self._safe_send({"t": "scroll", "dx": sdx, "dy": sdy})
-        except Exception:
-            pass
-        return None  # never let mouse events reach the Mac while driving the client
