@@ -24,7 +24,10 @@ class MessageReader:
 
     def _recv_exact(self, n: int):
         while len(self.buf) < n:
-            chunk = self.sock.recv(65536)
+            try:
+                chunk = self.sock.recv(65536)
+            except OSError:  # peer reset/aborted: treat as a normal disconnect
+                return None
             if not chunk:
                 return None
             self.buf += chunk

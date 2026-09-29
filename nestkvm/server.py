@@ -3,13 +3,14 @@
 Two modes, switched by a single manager thread (never inside a pynput callback,
 which must stay lightweight):
 
-  LOCAL  — one non-suppressing mouse listener watches for the cursor hitting the
-           edge that faces the other computer. Everything works normally on this
-           machine. When the edge is reached we push ("enter", ...) to the queue.
+  LOCAL  — the mouse/keyboard listeners pass everything through and only watch
+           for the cursor hitting the edge that faces the other computer.
+           Everything works normally on this machine. When the edge is reached
+           we push ("enter", ...) to the queue.
 
-  REMOTE — the other computer is being driven. We start suppressing mouse +
-           keyboard listeners so nothing reaches THIS machine, and forward every
-           event over the socket. The cursor is warped back to screen-centre on
+  REMOTE — the other computer is being driven. The same listeners now swallow
+           every event so nothing reaches THIS machine, and forward it over the
+           socket. The cursor is warped back to screen-centre on
            every move so it never gets stuck against a real screen edge; the
            delta from centre is what we send. We leave REMOTE when the client
            reports its cursor came back to the shared edge.
@@ -90,7 +91,7 @@ class Server:
 
     # ---- mode manager (own thread) ----
     def _manage(self):
-        self._start_local()
+        self._start_listeners()
         try:
             while self.running:
                 cmd = self._cmd.get()
@@ -101,73 +102,76 @@ class Server:
                 elif cmd[0] == "leave" and self.remote:
                     self._leave_remote(cmd[1] if len(cmd) > 1 else 0.5)
         finally:
-            self._stop_local()
-            self._stop_remote()
+            self.remote = False
+            self._set_suppress(False)
+            self._stop_listeners()
             if self.clip:
                 self.clip.stop()
 
     def _enter_remote(self, ratio):
-        self.remote = True
-        self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
-        self._stop_local()
-        self.mouse_ctrl.position = (self.cx, self.cy)
         self._last_pos = None  # first remote move re-establishes the baseline
-        self._start_remote()
+        self.remote = True
+        self._set_suppress(True)
+        self._safe_send({"t": "enter", "edge": self.edge, "ratio": ratio})
+        self.mouse_ctrl.position = (self.cx, self.cy)
 
     def _leave_remote(self, ratio):
         self.remote = False
-        self._stop_remote()
+        self._set_suppress(False)
         y = int(ratio * self.height)
         # drop the cursor just inside our edge so it doesn't instantly re-cross
         if self.edge == "right":
             self.mouse_ctrl.position = (self.width - 3, y)
         else:
             self.mouse_ctrl.position = (2, y)
-        self._start_local()
 
     # ---- listeners ----
-    def _start_local(self):
-        self._m_listener = mouse.Listener(on_move=self._on_move_local)
-        self._m_listener.start()
-
-    def _stop_local(self):
-        if self._m_listener:
-            self._m_listener.stop()
-            self._m_listener = None
-
-    def _start_remote(self):
+    # One mouse + one keyboard listener live for the whole connection; switching
+    # modes only flips whether they swallow events. Stopping and restarting a
+    # suppressing listener on macOS left its event tap behind, which kept eating
+    # clicks and keys after control came back to this machine.
+    def _start_listeners(self):
         self._m_listener = mouse.Listener(
-            on_move=self._on_move_remote,
-            on_click=self._on_click_remote,
-            on_scroll=self._on_scroll_remote,
-            suppress=True,
+            on_move=self._on_move,
+            on_click=self._on_click,
+            on_scroll=self._on_scroll,
+            darwin_intercept=self._darwin_intercept,
+        )
+        self._k_listener = keyboard.Listener(
+            on_press=self._on_press,
+            on_release=self._on_release,
+            darwin_intercept=self._darwin_intercept,
         )
         self._m_listener.start()
-        self._k_listener = keyboard.Listener(
-            on_press=self._on_press_remote,
-            on_release=self._on_release_remote,
-            suppress=True,
-        )
         self._k_listener.start()
 
-    def _stop_remote(self):
-        if self._m_listener:
-            self._m_listener.stop()
-            self._m_listener = None
-        if self._k_listener:
-            self._k_listener.stop()
-            self._k_listener = None
+    def _stop_listeners(self):
+        for listener in (self._m_listener, self._k_listener):
+            if listener:
+                listener.stop()
+        self._m_listener = None
+        self._k_listener = None
 
-    # ---- LOCAL callbacks ----
-    def _on_move_local(self, x, y):
+    def _set_suppress(self, on):
+        # Windows: the low-level hook reads this flag on every event.
+        # macOS: unused; _darwin_intercept decides instead.
+        for listener in (self._m_listener, self._k_listener):
+            if listener:
+                listener._suppress = on
+
+    def _darwin_intercept(self, event_type, event):
+        # returning None swallows the event; returning it passes it through
+        return None if self.remote else event
+
+    # ---- callbacks ----
+    def _on_move(self, x, y):
         if self.remote:
-            return
-        if self.edge == "right" and x >= self.width - 1:
+            self._on_move_remote(x, y)
+        elif self.edge == "right" and x >= self.width - 1:
             self._cmd.put(("enter", y / self.height))
         elif self.edge == "left" and x <= 0:
             self._cmd.put(("enter", y / self.height))
 
-    # ---- REMOTE callbacks ----
     def _on_move_remote(self, x, y):
         if self._last_pos is None:
             self._last_pos = (x, y)
@@ -183,14 +187,18 @@ class Server:
         self.mouse_ctrl.position = (self.cx, self.cy)
         self._last_pos = self.mouse_ctrl.position
 
-    def _on_click_remote(self, x, y, button, pressed):
-        self._safe_send({"t": "down" if pressed else "up", "btn": button.name})
+    def _on_click(self, x, y, button, pressed):
+        if self.remote:
+            self._safe_send({"t": "down" if pressed else "up", "btn": button.name})
 
-    def _on_scroll_remote(self, x, y, dx, dy):
-        self._safe_send({"t": "scroll", "dx": dx, "dy": dy})
+    def _on_scroll(self, x, y, dx, dy):
+        if self.remote:
+            self._safe_send({"t": "scroll", "dx": dx, "dy": dy})
 
-    def _on_press_remote(self, key):
-        self._safe_send({"t": "kd", "key": serialize_key(key)})
+    def _on_press(self, key):
+        if self.remote:
+            self._safe_send({"t": "kd", "key": serialize_key(key)})
 
-    def _on_release_remote(self, key):
-        self._safe_send({"t": "ku", "key": serialize_key(key)})
+    def _on_release(self, key):
+        if self.remote:
+            self._safe_send({"t": "ku", "key": serialize_key(key)})
