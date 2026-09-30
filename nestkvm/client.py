@@ -29,6 +29,8 @@ class Client:
         self.speed = speed
         self._fx = 0.0  # sub-pixel carry so slow speeds stay smooth
         self._fy = 0.0
+        self._held_keys = set()     # keys/buttons currently pressed by us, so we
+        self._held_buttons = set()  # can release them and never leave one stuck
         self.running = True
 
         self.clip = None
@@ -48,9 +50,24 @@ class Client:
                 self._handle(msg)
         finally:
             self.running = False
+            self._release_all()  # never leave a key/button stuck after a disconnect
             if self.clip:
                 self.clip.stop()
             print("[nest-kvm] connection closed")
+
+    def _release_all(self):
+        for btn in list(self._held_buttons):
+            try:
+                self.mouse_ctrl.release(btn)
+            except Exception:
+                pass
+        for key in list(self._held_keys):
+            try:
+                self.kbd_ctrl.release(key)
+            except Exception:
+                pass
+        self._held_buttons.clear()
+        self._held_keys.clear()
 
     def stop(self):
         self.running = False
@@ -67,6 +84,7 @@ class Client:
 
     def _leave(self):
         self.active = False
+        self._release_all()  # drop anything held so it doesn't stick on this machine
         if self.debug:
             print(f"[dbg] LEAVE: cursor reached the return edge (rx={self.rx:.0f}), "
                   f"handing control back to server", flush=True)
@@ -116,9 +134,13 @@ class Client:
             self.ry = max(0, min(self.height - 1, self.ry))
             self._place()
         elif t == "down":
-            self.mouse_ctrl.press(deserialize_button(msg.get("btn", "left")))
+            btn = deserialize_button(msg.get("btn", "left"))
+            self.mouse_ctrl.press(btn)
+            self._held_buttons.add(btn)
         elif t == "up":
-            self.mouse_ctrl.release(deserialize_button(msg.get("btn", "left")))
+            btn = deserialize_button(msg.get("btn", "left"))
+            self.mouse_ctrl.release(btn)
+            self._held_buttons.discard(btn)
         elif t == "scroll":
             self.mouse_ctrl.scroll(msg.get("dx", 0), msg.get("dy", 0))
         elif t == "kd":
@@ -126,6 +148,7 @@ class Client:
             if k is not None:
                 try:
                     self.kbd_ctrl.press(k)
+                    self._held_keys.add(k)
                 except Exception:
                     pass
         elif t == "ku":
@@ -135,6 +158,7 @@ class Client:
                     self.kbd_ctrl.release(k)
                 except Exception:
                     pass
+                self._held_keys.discard(k)
         elif t == "clip" and self.clip:
             self.clip.apply_remote(msg.get("text", ""))
         elif t == "clip_img" and self.clip:
