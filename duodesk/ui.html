@@ -5,102 +5,176 @@
 <title>DuoDesk</title>
 <style>
   @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Regular.ttf');font-weight:400;font-display:block;}
+  @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Medium.ttf');font-weight:500;font-display:block;}
   @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-SemiBold.ttf');font-weight:600;font-display:block;}
   @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Bold.ttf');font-weight:700;font-display:block;}
+  :root{
+    --cyan:#34e7df; --dim:#139f93; --glow:#39f0e6; --text:#cdeee9; --muted:#5fa79f;
+    --green:#3fe79a; --amber:#f5b73e; --red:#ff5f6b;
+    --fill:linear-gradient(165deg,#0c2f2c,#081d1b 70%);
+    --fill-hi:linear-gradient(165deg,#13504a,#0b312d);
+    --b14:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px);
+    --b8:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+  }
   *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{height:100%;overflow:hidden;background:#06201f;}
-  #app{position:relative;width:560px;height:702px;margin:0 auto;
-    background:url('bg.png') no-repeat center/100% 100%;
-    font-family:'Chakra Petch',monospace;color:#34e7df;user-select:none;}
-  .hit{position:absolute;cursor:pointer;}
-  .cyan{color:#34e7df;}
-  .val{position:absolute;display:flex;align-items:center;font-weight:600;letter-spacing:1px;
-    color:#34e7df;pointer-events:none;}
-  select,input{position:absolute;background:transparent;border:none;outline:none;
-    color:#34e7df;font-family:inherit;font-weight:600;letter-spacing:1px;
-    -webkit-appearance:none;appearance:none;cursor:pointer;}
-  input{cursor:text;}
-  .dot{position:absolute;width:15px;height:15px;border-radius:50%;background:#34e7df;
-    box-shadow:0 0 11px #34e7df;transform:translate(-50%,-50%);transition:top .12s;}
-  #startlabel{position:absolute;text-align:center;font-weight:700;letter-spacing:5px;
-    text-shadow:0 0 9px #39f0e6;pointer-events:none;color:#34e7df;}
-  #sdot{position:absolute;width:13px;height:13px;border-radius:50%;background:#3fe79a;
-    box-shadow:0 0 9px #3fe79a;transform:translate(-50%,-50%);}
-  #status{position:absolute;font-weight:600;font-size:15px;letter-spacing:2px;color:#5fa79f;pointer-events:none;}
-  #log{position:absolute;overflow:auto;font-weight:500;font-size:11px;line-height:1.5;
-    white-space:pre-wrap;color:#bfeee9;letter-spacing:.3px;}
-  #log::-webkit-scrollbar{width:6px;} #log::-webkit-scrollbar-thumb{background:#139f93;border-radius:3px;}
+  html,body{height:100%;overflow:hidden;}
+  body{font-family:'Chakra Petch',monospace;color:var(--text);user-select:none;
+    background:
+      radial-gradient(ellipse at 50% 24%,#0c3330,#05100f 75%),
+      repeating-linear-gradient(0deg,transparent 0 26px,rgba(52,231,223,.04) 26px 27px),
+      repeating-linear-gradient(90deg,transparent 0 26px,rgba(52,231,223,.04) 26px 27px);}
+
+  /* beveled neon panel */
+  .hud{position:relative;--bev:var(--b14);}
+  .hud::before{content:"";position:absolute;inset:0;background:var(--cyan);
+    clip-path:var(--bev);filter:drop-shadow(0 0 4px var(--glow));}
+  .hud::after{content:"";position:absolute;inset:2px;background:var(--fill);clip-path:var(--bev);}
+  .hud>*{position:relative;z-index:2;}
+  .b8{--bev:var(--b8);}
+
+  #frame{position:relative;margin:12px;padding:20px 22px;min-height:calc(100vh - 24px);}
+  /* corner brackets */
+  .cn{position:absolute;width:24px;height:24px;border:2px solid var(--cyan);z-index:3;
+    filter:drop-shadow(0 0 4px var(--glow));}
+  .cn.tl{top:0;left:0;border-right:0;border-bottom:0;}
+  .cn.tr{top:0;right:0;border-left:0;border-bottom:0;}
+  .cn.bl{bottom:0;left:0;border-right:0;border-top:0;}
+  .cn.br{bottom:0;right:0;border-left:0;border-top:0;}
+
+  .logo{font-size:46px;font-weight:700;letter-spacing:5px;color:var(--cyan);
+    text-shadow:0 0 8px var(--glow);line-height:1;}
+  .tag{margin-top:7px;font-size:10px;letter-spacing:3px;color:var(--muted);}
+  .tag b{color:var(--cyan);}
+
+  .seclabel{margin:18px 2px 10px;font-size:12px;letter-spacing:4px;color:var(--muted);}
+  .seclabel span{color:var(--cyan);margin-right:8px;}
+
+  .role{display:flex;align-items:center;gap:14px;padding:13px 18px;margin-bottom:11px;cursor:pointer;
+    font-size:14px;font-weight:700;letter-spacing:1px;white-space:nowrap;transition:filter .12s;}
+  .role:hover{filter:brightness(1.12);}
+  .role .ring{width:21px;height:21px;border-radius:50%;border:2px solid var(--cyan);flex:0 0 auto;
+    display:grid;place-items:center;box-shadow:0 0 7px rgba(52,231,223,.6);}
+  .role .ring i{width:9px;height:9px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 9px var(--cyan);opacity:0;transition:opacity .12s;}
+  .role small{margin-left:auto;color:var(--cyan);letter-spacing:2px;font-size:13px;}
+  .role.on{--fill:var(--fill-hi);}
+  .role.on .ring i{opacity:1;}
+  .role:not(.on){--fill:linear-gradient(165deg,#0a2220,#071a18);}
+
+  .divider{height:2px;margin:15px 4px;background:linear-gradient(90deg,transparent,var(--dim),transparent);
+    box-shadow:0 0 6px rgba(52,231,223,.35);}
+
+  .label{font-size:13px;letter-spacing:3px;color:var(--text);}
+  .label.m{color:var(--muted);font-size:11px;}
+  .row{display:flex;align-items:center;gap:16px;margin:14px 2px;}
+  .ipbox{margin:6px 2px 2px;}
+  .ip{font-size:24px;font-weight:700;letter-spacing:2px;color:var(--cyan);text-shadow:0 0 8px var(--glow);
+    padding:8px 16px;}
+
+  select,input{font-family:inherit;font-size:15px;color:var(--cyan);background:transparent;border:none;
+    outline:none;padding:9px 14px;letter-spacing:1px;width:100%;font-weight:600;}
+  input{color:var(--text);} input::placeholder{color:var(--muted);}
+  .ctrl{display:inline-block;} .ctrl select,.ctrl input{min-width:118px;}
+  .ctrl.sm select,.ctrl.sm input{min-width:84px;}
+  select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:34px;
+    background:transparent url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='7'><path d='M0 0l5 6 5-6z' fill='%2334e7df'/></svg>") no-repeat right 12px center;}
+  option{color:#06201f;background:#cdeee9;}
+
+  .opts{display:flex;align-items:center;gap:14px;margin:16px 2px;}
+
+  .start{margin:20px 2px 14px;height:64px;display:flex;align-items:center;justify-content:center;gap:22px;
+    cursor:pointer;font-size:24px;font-weight:700;letter-spacing:6px;color:var(--cyan);
+    text-shadow:0 0 9px var(--glow);transition:transform .08s,filter .12s;}
+  .start .sl{width:32px;height:13px;background:repeating-linear-gradient(-55deg,var(--cyan) 0 2px,transparent 2px 7px);}
+  .start:hover{filter:brightness(1.3);}
+  .start:active{transform:scale(.985);}
+  .start.run{--cyan:var(--red);--glow:#ff8089;--fill:linear-gradient(165deg,#3a1517,#220c0e);
+    animation:pulse 1.1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.4);}}
+
+  .statusrow{display:flex;align-items:center;gap:11px;margin:4px 4px 10px;font-size:13px;letter-spacing:3px;}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green);flex:0 0 auto;
+    transition:background .15s,box-shadow .15s;}
+  #statustext{color:var(--muted);}
+
+  .log{height:150px;padding:12px 14px;}
+  .log pre{height:100%;overflow:auto;font-size:11.5px;line-height:1.55;color:var(--text);
+    white-space:pre-wrap;letter-spacing:.3px;}
+  .log pre::-webkit-scrollbar{width:6px;} .log pre::-webkit-scrollbar-thumb{background:var(--dim);border-radius:3px;}
 </style>
 </head>
 <body>
-  <div id="app">
-    <!-- window close (over the red traffic light) -->
-    <div class="hit" style="left:9px;top:6px;width:16px;height:16px;border-radius:50%" onclick="window.pywebview.api.close()"></div>
+  <div class="hud" id="frame">
+    <span class="cn tl"></span><span class="cn tr"></span><span class="cn bl"></span><span class="cn br"></span>
 
-    <!-- role selection -->
-    <div class="hit" style="left:35px;top:160px;width:490px;height:40px" onclick="setMode('server')"></div>
-    <div class="hit" style="left:35px;top:201px;width:490px;height:36px" onclick="setMode('client')"></div>
-    <div class="dot" id="dot" style="left:61px;top:180px"></div>
+    <div class="logo">DUODESK</div>
+    <div class="tag">KEYBOARD&nbsp;&nbsp;·&nbsp;&nbsp;MOUSE&nbsp;&nbsp;·&nbsp;&nbsp;CLIPBOARD&nbsp;&nbsp;<b>//</b>&nbsp;&nbsp;2&nbsp;SYSTEMS</div>
 
-    <!-- server: edge -->
-    <select id="edge" style="left:252px;top:264px;width:108px;height:28px;font-size:17px;padding-left:10px">
-      <option value="right">right</option>
-      <option value="left">left</option>
-    </select>
+    <div class="seclabel"><span>///</span>SELECT ROLE</div>
 
-    <!-- IP bracket: server shows own IP, client types server IP -->
-    <div class="val" id="ip" style="left:68px;top:324px;width:210px;height:30px;font-size:22px;font-weight:700"></div>
-    <input id="host" placeholder="server IP" style="left:66px;top:325px;width:220px;height:28px;font-size:18px;display:none">
+    <div class="hud role on" id="role-server" onclick="setMode('server')">
+      <span class="ring"><i></i></span><span>CONTROL THE OTHER SYSTEM</span><small>[ SERVER ]</small>
+    </div>
+    <div class="hud role" id="role-client" onclick="setMode('client')">
+      <span class="ring"><i></i></span><span>BE CONTROLLED BY THE OTHER</span><small>[ CLIENT ]</small>
+    </div>
 
-    <!-- speed + port -->
-    <select id="speed" style="left:108px;top:365px;width:122px;height:28px;font-size:17px;padding-left:10px">
-      <option>0.25</option><option>0.35</option><option selected>0.5</option><option>0.75</option><option>1.0</option>
-    </select>
-    <input id="port" value="24800" style="left:322px;top:365px;width:112px;height:28px;font-size:17px;padding-left:10px">
+    <div class="divider"></div>
 
-    <!-- start -->
-    <div class="hit" style="left:42px;top:421px;width:476px;height:56px" onclick="toggle()"></div>
-    <div id="startlabel" style="left:42px;top:436px;width:476px;font-size:30px">START</div>
+    <div id="srv">
+      <div class="row"><span class="label">OTHER SYSTEM IS ON MY</span>
+        <span class="hud b8 ctrl"><select id="edge"><option value="right">right</option><option value="left">left</option></select></span>
+      </div>
+      <div class="ipbox"><span class="label m">CLIENT CONNECTS TO THIS IP:</span>
+        <div class="hud b8 ip" id="ip" style="margin-top:7px">—</div>
+      </div>
+    </div>
 
-    <!-- status + log -->
-    <div id="sdot" style="left:43px;top:517px"></div>
-    <div id="status" style="left:58px;top:509px">IDLE</div>
-    <div id="log" style="left:49px;top:548px;width:462px;height:112px"></div>
+    <div id="cli" style="display:none">
+      <div class="ipbox"><span class="label">SERVER IP ADDRESS</span>
+        <span class="hud b8 ctrl" style="display:block;margin-top:7px"><input id="host" placeholder="192.168.x.x"></span>
+      </div>
+    </div>
+
+    <div class="opts">
+      <span class="label">SPEED</span>
+      <span class="hud b8 ctrl sm"><select id="speed"><option>0.25</option><option>0.35</option><option selected>0.5</option><option>0.75</option><option>1.0</option></select></span>
+      <span class="label" style="margin-left:14px">PORT</span>
+      <span class="hud b8 ctrl sm"><input id="port" value="24800"></span>
+    </div>
+
+    <div class="hud start" id="startbtn" onclick="toggle()">
+      <span class="sl"></span><span id="startlabel">START</span><span class="sl"></span>
+    </div>
+
+    <div class="statusrow"><span class="dot" id="dot"></span><span id="statustext">IDLE</span></div>
+    <div class="hud log"><pre id="log"></pre></div>
   </div>
 
 <script>
-  var MODE="server", RUNNING=false;
+  var MODE="server",RUNNING=false;
   var C={muted:"#5fa79f",cyan:"#34e7df",green:"#3fe79a",amber:"#f5b73e",red:"#ff5f6b"};
-  var $=function(id){return document.getElementById(id);};
+  var $=function(i){return document.getElementById(i);};
 
   function setMode(m){
     MODE=m;
-    $("dot").style.top = (m==="server"?"180px":"219px");
-    $("ip").style.display   = m==="server"?"flex":"none";
-    $("edge").style.display = m==="server"?"block":"none";
-    $("host").style.display = m==="client"?"block":"none";
+    $("role-server").classList.toggle("on",m==="server");
+    $("role-client").classList.toggle("on",m==="client");
+    $("srv").style.display=m==="server"?"":"none";
+    $("cli").style.display=m==="client"?"":"none";
   }
-
   function toggle(){
-    if(RUNNING){ window.pywebview.api.stop(); return; }
-    window.pywebview.api.start({
-      mode:MODE, edge:$("edge").value, host:$("host").value,
-      port:$("port").value, speed:$("speed").value
-    });
+    if(RUNNING){window.pywebview.api.stop();return;}
+    window.pywebview.api.start({mode:MODE,edge:$("edge").value,host:$("host").value,port:$("port").value,speed:$("speed").value});
   }
-
   window.duodesk={
     log:function(msg){var e=$("log");e.textContent+=msg+"\n";e.scrollTop=e.scrollHeight;},
-    status:function(t,c){$("status").textContent=t.toUpperCase();
-      var col=C[c]||C.muted; $("status").style.color=col;
-      var d=$("sdot"); d.style.background=col; d.style.boxShadow="0 0 9px "+col;},
-    running:function(on){RUNNING=on;
-      $("startlabel").textContent=on?"STOP":"START";
-      $("startlabel").style.color=on?C.red:C.cyan;
-      $("startlabel").style.textShadow="0 0 9px "+(on?"#ff7b86":"#39f0e6");},
+    status:function(t,c){$("statustext").textContent=t.toUpperCase();var col=C[c]||C.muted;
+      $("statustext").style.color=col;var d=$("dot");d.style.background=col;d.style.boxShadow="0 0 9px "+col;},
+    running:function(on){RUNNING=on;$("startbtn").classList.toggle("run",on);
+      $("startlabel").textContent=on?"STOP":"START";},
     setip:function(ip){$("ip").textContent=ip;}
   };
-
   window.addEventListener("pywebviewready",function(){
     if(window.pywebview&&window.pywebview.api&&window.pywebview.api.get_ip)
       window.pywebview.api.get_ip().then(function(ip){window.duodesk.setip(ip);});
