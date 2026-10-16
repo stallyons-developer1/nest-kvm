@@ -14,10 +14,14 @@
     --b10:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px);
     --b8:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
   }
+  @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Regular.ttf');font-weight:400;font-display:block;}
+  @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Medium.ttf');font-weight:500;font-display:block;}
+  @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-SemiBold.ttf');font-weight:600;font-display:block;}
+  @font-face{font-family:'Chakra Petch';src:url('fonts/ChakraPetch-Bold.ttf');font-weight:700;font-display:block;}
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{height:100%;}
   body{
-    font-family:"SF Mono","Menlo","Consolas",monospace;
+    font-family:"Chakra Petch","SF Mono",monospace;
     color:var(--text); overflow:hidden; user-select:none;
     background:
       radial-gradient(ellipse at 50% 28%, #0b312e 0%, #051716 72%),
@@ -39,8 +43,8 @@
   .frame{position:absolute; inset:0; padding:18px 22px;}
   /* header */
   .head{display:flex; align-items:flex-end; justify-content:space-between; padding:6px 6px 14px;}
-  .logo{font-size:46px; font-weight:800; letter-spacing:3px; color:var(--cyan);
-    text-shadow:0 0 10px var(--glow),0 0 26px rgba(52,231,223,.5); line-height:.9;}
+  .logo{font-size:50px; font-weight:700; letter-spacing:4px; color:var(--cyan);
+    text-shadow:0 0 7px var(--glow); line-height:.9;}
   .head>div:first-child{flex:1; min-width:0;}
   .tag{margin-top:8px; font-size:10px; letter-spacing:2px; color:var(--muted); white-space:nowrap;}
   .tag b{color:var(--cyan);}
@@ -71,7 +75,7 @@
   .field .lab{font-size:13px; letter-spacing:3px; color:var(--text); margin-bottom:8px; display:block;}
   .field .lab.m{color:var(--muted); font-size:11px;}
   .row{display:flex; align-items:center; gap:16px;}
-  .ip{font-size:26px; font-weight:800; letter-spacing:2px; color:var(--cyan);
+  .ip{font-size:26px; font-weight:700; letter-spacing:2px; color:var(--cyan);
     text-shadow:0 0 9px var(--glow); padding:6px 16px; display:inline-block;}
 
   select,input{
@@ -89,7 +93,7 @@
 
   /* big action button */
   .start{margin:20px 2px 16px; height:66px; display:flex; align-items:center; justify-content:center;
-    gap:22px; cursor:pointer; font-size:24px; font-weight:800; letter-spacing:6px; color:var(--cyan);
+    gap:22px; cursor:pointer; font-size:24px; font-weight:700; letter-spacing:6px; color:var(--cyan);
     text-shadow:0 0 10px var(--glow); transition:filter .12s;}
   .start .sl{width:34px;height:14px;
     background:repeating-linear-gradient(-55deg,var(--cyan) 0 2px,transparent 2px 7px);}

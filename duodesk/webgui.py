@@ -149,6 +149,14 @@ def main():
         "DuoDesk", url=html_path, js_api=api,
         width=560, height=760, resizable=False, background_color="#051716")
     api.window = window
+
+    def _on_loaded():
+        api._js(f"window.duodesk.setip({json.dumps(lan_ip())})")
+
+    try:
+        window.events.loaded += _on_loaded
+    except Exception:
+        pass
     try:
         window.events.closing += api.stop
     except Exception:
