@@ -9,11 +9,4 @@ if [ ! -d .venv ]; then
   ./.venv/bin/pip install -r requirements.txt || { echo "Dependency install failed."; read -r; exit 1; }
 fi
 
-if ! ./.venv/bin/python -c "import tkinter" >/dev/null 2>&1; then
-  echo "Tk (the GUI toolkit) is missing for this Python."
-  echo "Run this once, then reopen:   brew install python-tk@3.13"
-  read -r
-  exit 1
-fi
-
 ./.venv/bin/python -m duodesk gui

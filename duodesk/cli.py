@@ -71,8 +71,13 @@ def _permcheck(args):
 
 
 def _gui(args):
-    from .gui import main as gui_main
+    # Prefer the HTML/webview UI; fall back to the plain tkinter one.
+    try:
+        import webview  # noqa: F401
 
+        from .webgui import main as gui_main
+    except Exception:
+        from .gui import main as gui_main
     gui_main()
 
 
