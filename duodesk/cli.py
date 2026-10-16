@@ -5,7 +5,9 @@ import socket
 def _serve(args):
     from .protocol import Connection
     from .server import Server
+    from .macwarm import warm_input_source
 
+    warm_input_source()
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((args.host, args.port))
@@ -30,7 +32,9 @@ def _serve(args):
 def _connect(args):
     from .protocol import Connection
     from .client import Client
+    from .macwarm import warm_input_source
 
+    warm_input_source()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((args.host, args.port))
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)

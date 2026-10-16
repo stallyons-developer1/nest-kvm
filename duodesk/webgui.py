@@ -150,6 +150,9 @@ class Api:
 def main():
     import webview
 
+    from .macwarm import warm_input_source
+    warm_input_source()  # main thread, before any input listener runs (macOS 15 crash fix)
+
     api = Api()
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.html")
     window = webview.create_window(
