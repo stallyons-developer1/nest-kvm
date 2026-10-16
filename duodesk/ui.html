@@ -175,10 +175,14 @@
       $("startlabel").textContent=on?"STOP":"START";},
     setip:function(ip){$("ip").textContent=ip;}
   };
-  window.addEventListener("pywebviewready",function(){
-    if(window.pywebview&&window.pywebview.api&&window.pywebview.api.get_ip)
-      window.pywebview.api.get_ip().then(function(ip){window.duodesk.setip(ip);});
-  });
+  function fetchIP(tries){
+    if(window.pywebview&&window.pywebview.api&&window.pywebview.api.get_ip){
+      window.pywebview.api.get_ip().then(function(ip){window.duodesk.setip(ip);})
+        .catch(function(){ if(tries>0) setTimeout(function(){fetchIP(tries-1);},200); });
+    } else if(tries>0){ setTimeout(function(){fetchIP(tries-1);},200); }
+  }
+  window.addEventListener("pywebviewready",function(){fetchIP(25);});
+  fetchIP(40);
 </script>
 </body>
 </html>
