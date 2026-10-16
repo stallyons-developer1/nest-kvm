@@ -154,7 +154,8 @@ def main():
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.html")
     window = webview.create_window(
         "DuoDesk", url=html_path, js_api=api,
-        width=560, height=720, resizable=False, background_color="#06201f")
+        width=560, height=702, resizable=False, frameless=True,
+        easy_drag=True, background_color="#06201f")
     api.window = window
 
     def _on_loaded():
