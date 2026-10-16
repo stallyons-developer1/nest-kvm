@@ -55,6 +55,13 @@ class Api:
         target = self._run_server if mode == "server" else self._run_client
         threading.Thread(target=target, args=(edge, host, port, speed), daemon=True).start()
 
+    def close(self):
+        self.stop()
+        try:
+            self.window.destroy()
+        except Exception:
+            pass
+
     def stop(self):
         self.running = False
         self._status("Stopping", "amber")
@@ -147,7 +154,8 @@ def main():
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.html")
     window = webview.create_window(
         "DuoDesk", url=html_path, js_api=api,
-        width=560, height=760, resizable=False, background_color="#051716")
+        width=560, height=702, resizable=False, frameless=True,
+        easy_drag=True, background_color="#06201f")
     api.window = window
 
     def _on_loaded():
