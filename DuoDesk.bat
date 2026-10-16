@@ -1,12 +1,14 @@
 @echo off
-REM Double-click this on Windows to open DuoDesk. First run sets everything up.
+REM Double-click on Windows (shows a console; use DuoDesk.vbs for no console).
+REM Updates from git, sets up the environment, then opens DuoDesk.
 cd /d "%~dp0"
 
-if not exist .venv (
+where git >nul 2>&1 && git pull
+
+if not exist .venv\Scripts\python.exe (
   echo First run - setting up ^(one time^)...
-  python -m venv .venv || (echo Could not create venv. Install Python 3 from python.org and tick "Add to PATH". & pause & exit /b 1)
-  .venv\Scripts\python -m pip install --upgrade pip >nul 2>&1
-  .venv\Scripts\pip install -r requirements.txt || (echo Dependency install failed. & pause & exit /b 1)
+  python -m venv .venv || (echo Install Python 3 from python.org and tick "Add to PATH". & pause & exit /b 1)
 )
 
+.venv\Scripts\python -m pip install -q -r requirements.txt
 .venv\Scripts\python -m duodesk gui

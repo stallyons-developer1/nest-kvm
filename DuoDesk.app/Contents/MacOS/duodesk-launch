@@ -1,13 +1,13 @@
 #!/bin/bash
 # Launched by double-clicking DuoDesk.app — no Terminal window appears.
-# The .app lives inside the nest-kvm project folder; find that folder.
 HERE="$(cd "$(dirname "$0")" && pwd)"      # .../DuoDesk.app/Contents/MacOS
 DIR="$(cd "$HERE/../../.." && pwd)"         # .../nest-kvm
 cd "$DIR" || exit 1
 
 if [ ! -d .venv ]; then
   python3 -m venv .venv
-  ./.venv/bin/pip install -r requirements.txt
 fi
+# keep dependencies current (quiet, never block launch if offline)
+./.venv/bin/python -m pip install -q -r requirements.txt >/dev/null 2>&1 || true
 
 exec ./.venv/bin/python -m duodesk gui
