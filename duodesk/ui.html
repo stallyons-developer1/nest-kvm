@@ -41,9 +41,10 @@
   .head{display:flex; align-items:flex-end; justify-content:space-between; padding:6px 6px 14px;}
   .logo{font-size:46px; font-weight:800; letter-spacing:3px; color:var(--cyan);
     text-shadow:0 0 10px var(--glow),0 0 26px rgba(52,231,223,.5); line-height:.9;}
-  .tag{margin-top:8px; font-size:11px; letter-spacing:3px; color:var(--muted);}
+  .head>div:first-child{flex:1; min-width:0;}
+  .tag{margin-top:8px; font-size:10px; letter-spacing:2px; color:var(--muted); white-space:nowrap;}
   .tag b{color:var(--cyan);}
-  .hatch{width:120px; height:46px;
+  .hatch{width:80px; height:38px; flex:0 0 auto; margin-left:10px;
     background:repeating-linear-gradient(-55deg, var(--cyan) 0 3px, transparent 3px 11px);
     clip-path:polygon(22% 0,100% 0,100% 100%,0 100%); filter:drop-shadow(0 0 4px var(--glow)); opacity:.8;}
 
@@ -51,13 +52,14 @@
   .section-label .sl{color:var(--cyan); margin-right:8px;}
 
   /* role rows */
-  .role{display:flex; align-items:center; gap:16px; padding:15px 20px; margin-bottom:12px; cursor:pointer;
-    font-size:16px; font-weight:700; letter-spacing:2px; color:var(--text);}
+  .role{display:flex; align-items:center; gap:14px; padding:14px 18px; margin-bottom:12px; cursor:pointer;
+    font-size:14px; font-weight:700; letter-spacing:1px; color:var(--text); white-space:nowrap;}
   .role .ring{width:22px;height:22px;border-radius:50%;border:2px solid var(--cyan);
     display:grid;place-items:center;box-shadow:0 0 7px rgba(52,231,223,.6);flex:0 0 auto;}
   .role .ring i{width:10px;height:10px;border-radius:50%;background:var(--cyan);
     box-shadow:0 0 9px var(--cyan);opacity:0;transition:opacity .12s;}
-  .role small{color:var(--cyan); margin-left:auto; letter-spacing:3px;}
+  .role>span{white-space:nowrap;}
+  .role small{color:var(--cyan); margin-left:auto; letter-spacing:2px; font-size:13px; white-space:nowrap;}
   .role.on i{opacity:1;}
   .role:not(.on){--fill:linear-gradient(160deg,#0a2220,#081b1a);}
   .role.on{--fill:var(--fill-hi);}
@@ -78,10 +80,9 @@
   }
   .ctrl{display:inline-block;} .ctrl select,.ctrl input{min-width:120px;}
   .ctrl.sm select,.ctrl.sm input{min-width:84px;}
-  select{appearance:none; -webkit-appearance:none; cursor:pointer;}
-  .ctrl.sel{position:relative;}
-  .ctrl.sel::after{content:"\25BE"; position:absolute; right:12px; top:50%; transform:translateY(-50%);
-    color:var(--cyan); pointer-events:none;}
+  select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:34px;
+    background:transparent url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='7'><path d='M0 0l5 6 5-6z' fill='%2334e7df'/></svg>") no-repeat right 12px center;}
+  option{color:#0a2220; background:#bfeee9;}
 
   .opts{display:flex; align-items:center; gap:14px; margin:16px 2px;}
   .opts .lab{font-size:13px;letter-spacing:3px;}
