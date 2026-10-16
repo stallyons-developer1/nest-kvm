@@ -40,6 +40,19 @@ Then fully quit and reopen the terminal.
 
 **Windows:** first run pops a firewall prompt — allow it on Private networks.
 
+## Easy mode — no terminal (GUI)
+
+Double-click the launcher; a small window opens. Pick **server** (the computer you
+type/click on) or **client** (the one being driven), set the IP, press **Start**.
+
+- **macOS:** double-click **`NestKVM.command`**. First run sets up automatically.
+  If it says Tk is missing, run once: `brew install python-tk@3.13`, then reopen.
+  (Still grant Accessibility + Input Monitoring to **Terminal** — see §2.)
+- **Windows:** double-click **`NestKVM.bat`**. First run sets up automatically.
+  (Python from python.org already includes the GUI toolkit.)
+
+The sections below are the equivalent terminal commands.
+
 ## 3. Run
 
 Say the Windows laptop sits to the **right** of the Mac, and you want to use the

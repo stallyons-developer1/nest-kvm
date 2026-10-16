@@ -70,6 +70,12 @@ def _permcheck(args):
         print("  quit this terminal app (Cmd+Q) and reopen it before running again.")
 
 
+def _gui(args):
+    from .gui import main as gui_main
+
+    gui_main()
+
+
 def _unfreeze(args):
     import sys
 
@@ -128,6 +134,9 @@ def main(argv=None):
                     help="mouse sensitivity multiplier; lower = slower (try 0.5 or 0.35)")
     pc.add_argument("--debug", action="store_true", help="print what the client is receiving")
     pc.set_defaults(func=_connect)
+
+    pg = sub.add_parser("gui", help="open the point-and-click window")
+    pg.set_defaults(func=_gui)
 
     pt = sub.add_parser("selftest", help="verify the install works on this machine")
     pt.set_defaults(func=_selftest)
