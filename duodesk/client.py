@@ -53,7 +53,7 @@ class Client:
             self._release_all()  # never leave a key/button stuck after a disconnect
             if self.clip:
                 self.clip.stop()
-            print("[nest-kvm] connection closed")
+            print("[duodesk] connection closed")
 
     def _release_all(self):
         for btn in list(self._held_buttons):

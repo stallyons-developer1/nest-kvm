@@ -1,4 +1,4 @@
-# nest-kvm
+# DuoDesk
 
 Share **one keyboard, mouse and clipboard** between your Mac and your Windows
 laptop over the same Wi-Fi — exactly like Input Leap / Barrier / Synergy, but
@@ -26,7 +26,7 @@ cd nest-kvm
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m nestkvm selftest       # should print two messages, a screen size, "selftest ok"
+python -m duodesk selftest       # should print two messages, a screen size, "selftest ok"
 ```
 
 ## 2. Grant permissions
@@ -45,13 +45,13 @@ Then fully quit and reopen the terminal.
 Double-click the launcher; a small window opens. Pick **server** (the computer you
 type/click on) or **client** (the one being driven), set the IP, press **Start**.
 
-- **macOS:** double-click **`NestKVM.app`** — the window opens with no Terminal.
-  First launch, macOS will ask you to grant **NestKVM** under Accessibility +
+- **macOS:** double-click **`DuoDesk.app`** — the window opens with no Terminal.
+  First launch, macOS will ask you to grant **DuoDesk** under Accessibility +
   Input Monitoring (see §2) — do that once, reopen, and it works. If Tk is missing
   run once: `brew install python-tk@3.13`.
-  (`NestKVM.command` still exists as a fallback; it opens via Terminal.)
-- **Windows:** double-click **`NestKVM.vbs`** — opens with no console window.
-  (`NestKVM.bat` is the fallback; it shows a console. Python from python.org
+  (`DuoDesk.command` still exists as a fallback; it opens via Terminal.)
+- **Windows:** double-click **`DuoDesk.vbs`** — opens with no console window.
+  (`DuoDesk.bat` is the fallback; it shows a console. Python from python.org
   already includes the GUI toolkit.)
 
 The sections below are the equivalent terminal commands.
@@ -63,14 +63,14 @@ Say the Windows laptop sits to the **right** of the Mac, and you want to use the
 
 On the **Mac** (server):
 ```bash
-python -m nestkvm server --edge right
+python -m duodesk server --edge right
 ```
 
 Find the Mac's LAN IP: `ipconfig getifaddr en0` (e.g. `192.168.1.20`).
 
 On **Windows** (client):
 ```bash
-python -m nestkvm client --host 192.168.1.20
+python -m duodesk client --host 192.168.1.20
 ```
 
 Now shove the mouse off the right edge of the Mac screen — it appears on Windows.
@@ -86,7 +86,7 @@ Run `server` on Windows and `client` on the Mac — same commands, roles swapped
 ## 4. How it works (for when you extend it)
 
 ```
-nestkvm/
+duodesk/
   protocol.py   length-prefixed JSON framing over one TCP socket
   screen.py     primary-display pixel size per OS
   keys.py       (de)serialize pynput keys/buttons <-> plain dicts

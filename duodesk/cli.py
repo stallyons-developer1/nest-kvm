@@ -10,21 +10,21 @@ def _serve(args):
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((args.host, args.port))
     s.listen(1)
-    print(f"[nest-kvm] server on {args.host}:{args.port}  (other computer is on the {args.edge})")
-    print("[nest-kvm] waiting for a client to connect...  (Ctrl+C to quit)")
+    print(f"[duodesk] server on {args.host}:{args.port}  (other computer is on the {args.edge})")
+    print("[duodesk] waiting for a client to connect...  (Ctrl+C to quit)")
     try:
         while True:
             conn_sock, addr = s.accept()
             conn_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            print(f"[nest-kvm] client connected from {addr[0]}")
+            print(f"[duodesk] client connected from {addr[0]}")
             server = Server(Connection(conn_sock), edge=args.edge,
                             clipboard=not args.no_clipboard,
                             images=not args.no_images, speed=args.speed,
                             edge_px=args.edge_size, debug=args.debug)
             server.run()
-            print("[nest-kvm] client disconnected; waiting again...")
+            print("[duodesk] client disconnected; waiting again...")
     except KeyboardInterrupt:
-        print("\n[nest-kvm] bye")
+        print("\n[duodesk] bye")
 
 
 def _connect(args):
@@ -34,22 +34,22 @@ def _connect(args):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((args.host, args.port))
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    print(f"[nest-kvm] connected to server {args.host}:{args.port}")
-    print("[nest-kvm] ready. Push the mouse against the shared screen edge on the server.")
+    print(f"[duodesk] connected to server {args.host}:{args.port}")
+    print("[duodesk] ready. Push the mouse against the shared screen edge on the server.")
     client = Client(Connection(sock), clipboard=not args.no_clipboard,
                     images=not args.no_images, speed=args.speed, debug=args.debug)
     try:
         client.run()
     except KeyboardInterrupt:
         client.stop()
-        print("\n[nest-kvm] bye")
+        print("\n[duodesk] bye")
 
 
 def _permcheck(args):
     import sys
 
     if sys.platform != "darwin":
-        print("[nest-kvm] permcheck is macOS-only; on Windows just allow the firewall prompt.")
+        print("[duodesk] permcheck is macOS-only; on Windows just allow the firewall prompt.")
         return
     try:
         from ApplicationServices import (
@@ -57,13 +57,13 @@ def _permcheck(args):
             kAXTrustedCheckOptionPrompt,
         )
     except Exception as e:
-        print("[nest-kvm] could not load macOS API:", e)
+        print("[duodesk] could not load macOS API:", e)
         return
     trusted = AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})
     if trusted:
-        print("[nest-kvm] Accessibility: GRANTED. You're good to run the server.")
+        print("[duodesk] Accessibility: GRANTED. You're good to run the server.")
     else:
-        print("[nest-kvm] Accessibility: NOT granted.")
+        print("[duodesk] Accessibility: NOT granted.")
         print("  A system dialog should have opened, and THIS app was added to")
         print("  System Settings > Privacy & Security > Accessibility (unchecked).")
         print("  Turn it ON there, also add it under 'Input Monitoring', then FULLY")
@@ -80,12 +80,12 @@ def _unfreeze(args):
     import sys
 
     if sys.platform != "darwin":
-        print("[nest-kvm] unfreeze is macOS-only.")
+        print("[duodesk] unfreeze is macOS-only.")
         return
     import Quartz
 
     Quartz.CGAssociateMouseAndMouseCursorPosition(True)
-    print("[nest-kvm] mouse cursor re-associated. If it was stuck, it should move now.")
+    print("[duodesk] mouse cursor re-associated. If it was stuck, it should move now.")
 
 
 def _selftest(args):
@@ -106,7 +106,7 @@ def _selftest(args):
 
 def main(argv=None):
     p = argparse.ArgumentParser(
-        prog="nestkvm",
+        prog="duodesk",
         description="Share one keyboard/mouse/clipboard between two computers over the LAN.",
     )
     sub = p.add_subparsers(dest="cmd", required=True)

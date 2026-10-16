@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click this on macOS to open NestKVM. First run sets everything up.
+# Double-click this on macOS to open DuoDesk. First run sets everything up.
 cd "$(dirname "$0")" || exit 1
 
 if [ ! -d .venv ]; then
@@ -16,4 +16,4 @@ if ! ./.venv/bin/python -c "import tkinter" >/dev/null 2>&1; then
   exit 1
 fi
 
-./.venv/bin/python -m nestkvm gui
+./.venv/bin/python -m duodesk gui

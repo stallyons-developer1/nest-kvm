@@ -1,5 +1,5 @@
 @echo off
-REM Double-click this on Windows to open NestKVM. First run sets everything up.
+REM Double-click this on Windows to open DuoDesk. First run sets everything up.
 cd /d "%~dp0"
 
 if not exist .venv (
@@ -9,4 +9,4 @@ if not exist .venv (
   .venv\Scripts\pip install -r requirements.txt || (echo Dependency install failed. & pause & exit /b 1)
 )
 
-.venv\Scripts\python -m nestkvm gui
+.venv\Scripts\python -m duodesk gui
