@@ -45,11 +45,14 @@ Then fully quit and reopen the terminal.
 Double-click the launcher; a small window opens. Pick **server** (the computer you
 type/click on) or **client** (the one being driven), set the IP, press **Start**.
 
-- **macOS:** double-click **`NestKVM.command`**. First run sets up automatically.
-  If it says Tk is missing, run once: `brew install python-tk@3.13`, then reopen.
-  (Still grant Accessibility + Input Monitoring to **Terminal** — see §2.)
-- **Windows:** double-click **`NestKVM.bat`**. First run sets up automatically.
-  (Python from python.org already includes the GUI toolkit.)
+- **macOS:** double-click **`NestKVM.app`** — the window opens with no Terminal.
+  First launch, macOS will ask you to grant **NestKVM** under Accessibility +
+  Input Monitoring (see §2) — do that once, reopen, and it works. If Tk is missing
+  run once: `brew install python-tk@3.13`.
+  (`NestKVM.command` still exists as a fallback; it opens via Terminal.)
+- **Windows:** double-click **`NestKVM.vbs`** — opens with no console window.
+  (`NestKVM.bat` is the fallback; it shows a console. Python from python.org
+  already includes the GUI toolkit.)
 
 The sections below are the equivalent terminal commands.
 
