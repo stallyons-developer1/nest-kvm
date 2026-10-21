@@ -61,6 +61,16 @@ class Api:
             self.window.destroy()
         except Exception:
             pass
+        # Hard fallback: on some platforms window.destroy() from the JS-api thread
+        # doesn't actually close the window, leaving it stuck. Force-exit shortly
+        # after so the close button always closes the app.
+        def _force_quit():
+            import os
+            import time as _t
+            _t.sleep(0.7)
+            os._exit(0)
+
+        threading.Thread(target=_force_quit, daemon=True).start()
 
     def stop(self):
         self.running = False

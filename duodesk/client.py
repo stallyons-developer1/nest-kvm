@@ -6,6 +6,10 @@ can tell when the cursor has walked back to the shared edge and hand control bac
 to the server with a "leave" message.
 """
 
+import socket
+import threading
+import time
+
 from pynput import keyboard, mouse
 
 from .protocol import Connection
@@ -40,8 +44,14 @@ class Client:
             self.clip = ClipboardSync(self._safe_send, images=images)
 
     def run(self):
+        try:
+            self.conn.sock.settimeout(5.0)
+            self.conn.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except OSError:
+            pass
         if self.clip:
             self.clip.start()
+        threading.Thread(target=self._ping_loop, daemon=True).start()
         try:
             while self.running:
                 msg = self.conn.read()
@@ -54,6 +64,13 @@ class Client:
             if self.clip:
                 self.clip.stop()
             print("[duodesk] connection closed")
+
+    def _ping_loop(self):
+        while self.running:
+            time.sleep(2.0)
+            if not self.running:
+                break
+            self._safe_send({"t": "ping"})
 
     def _release_all(self):
         for btn in list(self._held_buttons):

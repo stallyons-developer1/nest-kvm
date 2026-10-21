@@ -23,8 +23,10 @@ Relative motion differs by OS:
 """
 
 import queue
+import socket
 import sys
 import threading
+import time
 
 from pynput import keyboard, mouse
 
@@ -82,10 +84,28 @@ class Server:
 
     # ---- lifecycle ----
     def run(self):
+        # read timeout + keepalive so an abrupt client drop (Wi-Fi change, cable
+        # pull) is detected in a few seconds instead of hanging forever with the
+        # Mac cursor frozen and input suppressed.
+        try:
+            self.conn.sock.settimeout(5.0)
+            self.conn.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except OSError:
+            pass
         threading.Thread(target=self._reader_loop, daemon=True).start()
+        threading.Thread(target=self._ping_loop, daemon=True).start()
         if self.clip:
             self.clip.start()
         self._manage()  # blocks until the connection drops or stop()
+
+    def _ping_loop(self):
+        # steady traffic keeps the read timeout from firing while alive; its
+        # absence is what the peer uses to notice we've gone away.
+        while self.running:
+            time.sleep(2.0)
+            if not self.running:
+                break
+            self._safe_send({"t": "ping"})
 
     def stop(self):
         self.running = False
